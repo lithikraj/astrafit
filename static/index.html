@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GymPro – Workout Tracker</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        body { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-white font-sans">
+
+<!-- ================= HEADER ================= -->
+<header class="p-4 border-b border-slate-800 sticky top-0 bg-slate-950 z-20 flex justify-between items-center">
+    <h1 id="page-title" class="text-xl font-bold text-blue-500">Workouts</h1>
+    <button onclick="fetchWorkouts()" class="text-xs text-slate-400">Refresh ↻</button>
+</header>
+
+<!-- ================= HISTORY PAGE ================= -->
+<main id="list-page" class="tab-content active p-4 pb-28">
+    <div id="workout-list" class="space-y-4 text-center text-slate-500">
+        Loading workouts...
+    </div>
+</main>
+
+<!-- ================= ADD WORKOUT PAGE ================= -->
+<main id="add-page" class="tab-content p-4 pb-28">
+    <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 max-w-md mx-auto">
+
+        <input id="wName" type="text" placeholder="Workout Name (Chest Day)"
+            class="w-full bg-slate-800 p-4 rounded-xl mb-3 outline-none">
+
+        <input id="wDate" type="date"
+            class="w-full bg-slate-800 p-4 rounded-xl mb-6 outline-none">
+
+        <h3 class="text-xs text-slate-400 uppercase mb-2">Exercises</h3>
+        <div id="exercise-fields" class="space-y-5"></div>
+
+        <button onclick="addExerciseField()"
+            class="w-full mt-4 text-blue-400 py-3 border border-dashed border-blue-900 rounded-xl">
+            + Add Exercise
+        </button>
+
+        <button onclick="saveWorkout()"
+            class="w-full mt-6 bg-blue-600 p-4 rounded-2xl font-bold shadow-lg active:scale-95 transition">
+            Save Workout
+        </button>
+    </div>
+</main>
+
+<!-- ================= ANALYTICS PAGE ================= -->
+<main id="chart-page" class="tab-content p-4 pb-28">
+    <div class="max-w-md mx-auto space-y-4">
+
+        <select id="exercise-selector" onchange="updateChart()"
+            class="w-full bg-slate-800 p-3 rounded-xl outline-none border border-slate-700">
+            <option value="total">Total Volume</option>
+        </select>
+
+        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800">
+            <canvas id="mainChart"></canvas>
+        </div>
+
+        <!-- REST TIMER (NEW GYM FEATURE) -->
+        <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 text-center">
+            <p class="text-xs text-slate-400 mb-2">Rest Timer</p>
+            <button onclick="startRest(60)" class="bg-blue-600 px-4 py-2 rounded-lg text-sm">60s</button>
+            <button onclick="startRest(90)" class="bg-blue-600 px-4 py-2 rounded-lg text-sm ml-2">90s</button>
+            <p id="rest-timer" class="mt-3 text-lg font-mono text-blue-400"></p>
+        </div>
+
+    </div>
+</main>
+
+<!-- ================= NAV BAR ================= -->
+<nav class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 flex justify-around p-3 pb-6 z-20">
+    <button onclick="showPage('list','History')" class="text-slate-400">📋 History</button>
+    <button onclick="showPage('add','Log Workout')" class="text-slate-400">➕ Log</button>
+    <button onclick="showPage('chart','Analytics')" class="text-slate-400">📈 Stats</button>
+</nav>
+
+<script>
+/* =========================================================
+   CONFIG
+   ========================================================= */
+const API_URL = 'https://siena-noninflected-untrigonometrically.ngrok-free.dev/api/workouts/';
+let allWorkouts = [];
+let chart;
+
+/* =========================================================
+   PAGE NAVIGATION
+   ========================================================= */
+function showPage(page, title) {
+    document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+    document.getElementById(page + '-page').classList.add('active');
+    document.getElementById('page-title').innerText = title;
+    window.scrollTo(0, 0);
+}
+
+/* =========================================================
+   ADD EXERCISE & SETS
+   ========================================================= */
+function addExerciseField() {
+    const container = document.getElementById('exercise-fields');
+    const div = document.createElement('div');
+    div.className = "exercise-block bg-slate-800/50 p-4 rounded-xl border border-slate-700";
+    div.innerHTML = `
+        <input type="text" placeholder="Exercise name"
+            class="ex-name w-full bg-transparent border-b border-slate-600 mb-3 outline-none">
+
+        <div class="sets space-y-2"></div>
+
+        <button onclick="addSet(this)"
+            class="text-xs text-blue-400 mt-2">+ Add Set</button>
+    `;
+    container.appendChild(div);
+    addSet(div.querySelector('button'));
+}
+
+function addSet(btn) {
+    const container = btn.previousElementSibling;
+    const div = document.createElement('div');
+    div.className = "flex gap-2";
+    div.innerHTML = `
+        <input type="number" placeholder="Kg"
+            class="s-weight w-full bg-slate-800 p-2 rounded-lg">
+        <input type="number" placeholder="Reps"
+            class="s-reps w-full bg-slate-800 p-2 rounded-lg">
+    `;
+    container.appendChild(div);
+}
+
+/* =========================================================
+   SAVE WORKOUT
+   ========================================================= */
+async function saveWorkout() {
+    try {
+        const exercises = [];
+        document.querySelectorAll('.exercise-block').forEach(block => {
+            const sets = [];
+            block.querySelectorAll('.sets div').forEach((row, i) => {
+                sets.push({
+                    set_number: i + 1,
+                    weight: row.querySelector('.s-weight').value || 0,
+                    reps: row.querySelector('.s-reps').value || 0
+                });
+            });
+            exercises.push({
+                name: block.querySelector('.ex-name').value,
+                sets: sets
+            });
+        });
+
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: wName.value,
+                date: wDate.value,
+                exercises: exercises
+            })
+        });
+
+        showPage('list', 'History');
+        fetchWorkouts();
+
+    } catch (err) {
+        // ⚠ ERROR HANDLING
+        console.error("SAVE ERROR:", err);
+        alert("Workout not saved. Check API or internet.");
+    }
+}
+
+/* =========================================================
+   FETCH & RENDER
+   ========================================================= */
+async function fetchWorkouts() {
+    try {
+        const res = await fetch(API_URL);
+        allWorkouts = await res.json();
+        renderList();
+        populateSelector();
+        updateChart();
+    } catch (err) {
+        console.error("FETCH ERROR:", err);
+        document.getElementById('workout-list').innerHTML =
+            "<p class='text-red-500'>API Offline</p>";
+    }
+}
+
+function renderList() {
+    const list = document.getElementById('workout-list');
+    if (!allWorkouts.length) {
+        list.innerHTML = "<p class='text-slate-500 italic'>No workouts yet</p>";
+        return;
+    }
+    list.innerHTML = allWorkouts.map(w => `
+        <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 text-left relative shadow-lg">
+            <button onclick="deleteWorkout(${w.id})"
+                class="absolute top-3 right-3 text-red-500 p-2">✕</button>
+            
+            <div class="mb-3">
+                <h3 class="font-bold text-lg">${w.name}</h3>
+                <p class="text-[10px] text-blue-500 font-bold uppercase tracking-widest">${w.date}</p>
+            </div>
+
+            <div class="space-y-3 border-t border-slate-800 pt-3">
+                ${w.exercises.map(ex => `
+                    <div class="text-sm">
+                        <p class="text-slate-300 font-semibold mb-1">${ex.name}</p>
+                        <div class="flex flex-wrap gap-2">
+                            ${ex.sets.map(s => `
+                                <span class="bg-slate-800 px-2 py-1 rounded text-[10px] border border-slate-700">
+                                    <span class="text-slate-500">S${s.set_number}:</span> ${s.weight}kg × ${s.reps}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+/* =========================================================
+   CHART
+   ========================================================= */
+function populateSelector() {
+    const sel = document.getElementById('exercise-selector');
+    sel.innerHTML = `<option value="total">Total Volume</option>`;
+    const names = new Set();
+    allWorkouts.forEach(w => w.exercises.forEach(e => names.add(e.name)));
+    names.forEach(n => {
+        const o = document.createElement('option');
+        o.value = n;
+        o.innerText = n;
+        sel.appendChild(o);
+    });
+}
+
+function updateChart() {
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    const selected = document.getElementById('exercise-selector').value;
+    const labels = [];
+    const data = [];
+
+    allWorkouts.slice().reverse().forEach(w => {
+        let vol = 0;
+        w.exercises.forEach(e => {
+            if (selected === 'total' || e.name === selected) {
+                e.sets.forEach(s => vol += s.weight * s.reps);
+            }
+        });
+        if (vol) {
+            labels.push(w.date);
+            data.push(vol);
+        }
+    });
+
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ data, borderColor: '#3b82f6' }] }
+    });
+}
+
+/* =========================================================
+   DELETE
+   ========================================================= */
+async function deleteWorkout(id) {
+    if (!confirm("Delete this workout?")) return;
+    await fetch(`${API_URL}${id}/`, { method: 'DELETE' });
+    fetchWorkouts();
+}
+
+/* =========================================================
+   REST TIMER (GYM FEATURE)
+   ========================================================= */
+let restInterval;
+function startRest(sec) {
+    clearInterval(restInterval);
+    let time = sec;
+    restInterval = setInterval(() => {
+        document.getElementById('rest-timer').innerText = time + "s";
+        if (--time < 0) clearInterval(restInterval);
+    }, 1000);
+}
+
+/* INIT */
+addExerciseField();
+fetchWorkouts();
+</script>
+</body>
+</html>
