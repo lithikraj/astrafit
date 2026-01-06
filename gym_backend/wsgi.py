@@ -8,9 +8,14 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
 """
 
 import os
+import sys
+
+# Add your project directory to the sys.path
+path = '/home/lithikraj/my_gym_app'
+if path not in sys.path:
+    sys.path.append(path)
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'gym_backend.settings'
 
 from django.core.wsgi import get_wsgi_application
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gym_backend.settings")
-
 application = get_wsgi_application()
