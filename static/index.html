@@ -190,6 +190,15 @@
                     class="fa-solid fa-rotate-right mr-1"></i> Refresh</button>
         </div>
 
+        <!-- Search Bar -->
+        <div class="mb-5">
+            <div class="relative">
+                <i class="fa-solid fa-search absolute left-4 top-3.5 text-gray-500 text-sm"></i>
+                <input type="text" id="history-search" onkeyup="renderHistory()" placeholder="Search logs..."
+                    class="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none focus:border-primary/50 transition placeholder-gray-600">
+            </div>
+        </div>
+
         <div id="workout-list" class="space-y-4">
             <!-- Loading State -->
             <div class="animate-pulse flex space-x-4 p-4 glass-card rounded-2xl">
@@ -300,9 +309,9 @@
             <h3 class="font-semibold text-white mb-4">One Rep Max</h3>
             <div class="grid grid-cols-2 gap-3 mb-4">
                 <input id="rm-w" type="number" placeholder="Lift (kg)"
-                    class="input-premium p-3 rounded-lg text-white bg-black/20">
+                    class="input-premium p-3 rounded-lg text-white bg-white/10">
                 <input id="rm-r" type="number" placeholder="Reps"
-                    class="input-premium p-3 rounded-lg text-white bg-black/20">
+                    class="input-premium p-3 rounded-lg text-white bg-white/10">
             </div>
             <div class="flex items-center gap-4">
                 <button onclick="calculate1RM()"
@@ -366,6 +375,8 @@
 
         function renderHistory() {
             const list = document.getElementById('workout-list');
+            const search = document.getElementById('history-search') ? document.getElementById('history-search').value.toLowerCase() : '';
+
             if (allWorkouts.length === 0) {
                 list.innerHTML = `
                     <div class="text-center py-12 opacity-40">
@@ -375,8 +386,22 @@
                 return;
             }
 
-            // Sort new to old
-            const sorted = allWorkouts.slice().reverse();
+            // Filter & Sort
+            const filtered = allWorkouts.filter(w =>
+                w.name.toLowerCase().includes(search) ||
+                w.date.includes(search) ||
+                w.exercises.some(ex => ex.name.toLowerCase().includes(search))
+            );
+
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-8 opacity-40">
+                        <p>No logs match your search.</p>
+                    </div>`;
+                return;
+            }
+
+            const sorted = filtered.slice().reverse();
 
             list.innerHTML = sorted.map((w, i) => `
                 <div class="glass-card p-5 rounded-2xl animate-slide-up" style="animation-delay: ${i * 0.05}s">
