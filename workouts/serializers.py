@@ -19,7 +19,7 @@ class WorkoutSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Workout
-        fields = ['id', 'date', 'name', 'exercises']
+        fields = ['id', 'date', 'name', 'exercises', 'original_note']
 
     def create(self, validated_data):
         exercises_data = validated_data.pop('exercises')

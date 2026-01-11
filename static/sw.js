@@ -1,13 +1,27 @@
-// Minimal Service Worker
+const CACHE_NAME = 'astrafit-store-v3';
+
 self.addEventListener('install', (e) => {
+    self.skipWaiting(); // Force activation
     e.waitUntil(
-        caches.open('astrafit-store').then((cache) => cache.addAll([
+        caches.open(CACHE_NAME).then((cache) => cache.addAll([
             '/static/index.html',
             '/static/manifest.json',
             'https://cdn.tailwindcss.com',
             'https://cdn.jsdelivr.net/npm/chart.js',
             'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
         ]))
+    );
+});
+
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
+        caches.keys().then((keyList) => {
+            return Promise.all(keyList.map((key) => {
+                if (key !== CACHE_NAME) {
+                    return caches.delete(key);
+                }
+            }));
+        })
     );
 });
 

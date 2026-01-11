@@ -3,6 +3,7 @@ from django.db import models
 class Workout(models.Model):
     date = models.DateField()
     name = models.CharField(max_length=100) # e.g., "Shoulders & Abs"
+    original_note = models.TextField(blank=True, null=True) # Raw text note support
 
     def __str__(self):
         return f"{self.date} - {self.name}"
